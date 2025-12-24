@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cây Thông Giáng Sinh Tương Tác - Xoay 360°</title>
+    
+    <!-- Thư viện Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- MediaPipe Hands - ĐÃ ĐƯỢC SỬA ĐỂ TƯƠNG THÍCH GITHUB -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Arial', sans-serif;
+            color: white;
+        }
+        
+        #canvas-container {
+            width: 100%;
+            height: 100vh;
+            display: block;
+        }
+        
+        #ui-layer {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #FFD700;
+            color: #FFD700;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+            text-shadow: 0 0 10px #FFD700;
+            backdrop-filter: blur(5px);
+        }
+        
+        .instructions {
+            color: #ccc;
+            font-size: 14px;
+            margin-bottom: 20px;
+            text-shadow: 0 2px 4px black;
+            background: rgba(0, 0, 0, 0.5);
+            display: inline-block;
+            padding: 8px 15px;
+            border-radius: 10px;
+        }
+        
+        .start-button {
+            pointer-events: auto;
+            cursor: pointer;
+            background: linear-gradient(to bottom, #D32F2F, #8B0000);
+            color: #FFF;
+            border: 2px solid #FFD700;
+            padding: 15px 50px;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 18px;
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.6);
+            animation: pulse 1.5s infinite;
+            transition: all 0.3s ease;
+        }
+        
+        .start-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 40px rgba(255, 0, 0, 0.8);
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        #camera-preview {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 160px;
+            height: 120px;
+            border: 2px solid rgba(255, 0, 0, 0.5);
+            transform: scaleX(-1);
+            opacity: 0.7;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .loading-text {
+            color: #FFD700;
+            font-size: 24px;
+            margin-top: 20px;
+            text-shadow: 0 0 10px #FF0000;
+        }
+        
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 5px solid rgba(255, 215, 0, 0.3);
+            border-top-color: #FFD700;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #ff6b6b;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            display: none;
+            z-index: 1000;
+        }
+        
+        .camera-permission {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            border: 2px solid #FFD700;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+            z-index: 300;
+            max-width: 500px;
+            display: none;
+        }
+        
+        .camera-permission h3 {
+            color: #FFD700;
+            margin-bottom: 15px;
+        }
+        
+        .permission-button {
+            background: linear-gradient(to bottom, #D32F2F, #8B0000);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+        
+        #music-controls {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            z-index: 100;
+        }
+        
+        .music-btn {
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #4CAF50;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            backdrop-filter: blur(5px);
+        }
+        
+        .music-btn:hover {
+            background: rgba(76, 175, 80, 0.3);
+        }
+        
+        .auto-play-note {
+            position: absolute;
+            top: 50px;
+            left: 15px;
+            color: #4CAF50;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 4px 8px;
+            border-radius: 10px;
+            z-index: 99;
+        }
+        
+        .audio-warning {
+            position: absolute;
+            top: 80px;
+            left: 15px;
+            color: #FF9800;
+            font-size: 11px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 4px 8px;
+            border-radius: 8px;
+            z-index: 98;
+            max-width: 200px;
+        }
+        
+        #click-to-unmute {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            color: white;
+            font-size: 24px;
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+        
+        .unmute-button {
+            background: linear-gradient(to bottom, #4CAF50, #2E7D32);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 30px;
+            font-size: 20px;
+            cursor: pointer;
+            margin-top: 30px;
+            font-weight: bold;
+            box-shadow: 0 0 20px rgba(76, 175, 80, 0.5);
+        }
+        
+        .unmute-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(76, 175, 80, 0.7);
+        }
+        
+        .rotation-info {
+            position: absolute;
+            top: 110px;
+            left: 15px;
+            color: #2196F3;
+            font-size: 11px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 4px 8px;
+            border-radius: 8px;
+            z-index: 97;
+        }
+        
+        /* Thêm style cho fallback message */
+        .camera-fallback {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 160px;
+            height: 120px;
+            border: 2px dashed rgba(255, 215, 0, 0.5);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #FFD700;
+            font-size: 14px;
+            text-align: center;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Màn hình loading -->
+    <div id="loading">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Đang tải Giáng Sinh...</div>
+    </div>
+    
+    <!-- Màn hình yêu cầu bật âm thanh -->
+    <div id="click-to-unmute">
+        <h2 style="color: #FFD700; margin-bottom: 20px;">🎄 Vừa là giáng sinh cũng vừa là sinh nhật 🎁</h2>
+        <p>Trải nghiệm đầy đủ cần âm thanh và hình ảnh</p>
+        <p style="font-size: 18px; margin-top: 10px;">Vui lòng nhấn nút bên dưới để bật âm thanh</p>
+        <button class="unmute-button" onclick="unmuteAudio()">
+            🔈 BẬT ÂM THANH & BẮT ĐẦU
+        </button>
+        <p style="margin-top: 20px; font-size: 14px; color: #aaa;">(Trang web này sử dụng camera để nhận diện cử chỉ tay)</p>
+    </div>
+    
+    <!-- Yêu cầu camera permission -->
+    <div id="camera-permission" class="camera-permission">
+        <h3>🎄 Cần truy cập camera 🎁</h3>
+        <p>Ứng dụng cần truy cập camera để nhận diện cử chỉ tay của bạn.</p>
+        <p>Vui lòng cho phép sử dụng camera để trải nghiệm tương tác Giáng Sinh.</p>
+        <button id="allow-camera" class="permission-button">CHO PHÉP SỬ DỤNG CAMERA</button>
+        <p style="margin-top: 15px; font-size: 14px; color: #aaa;">Nếu không có camera, bạn vẫn có thể xem hiệu ứng Giáng Sinh.</p>
+        <button id="skip-camera" class="permission-button" style="background: #444; margin-left: 10px;">BỎ QUA CAMERA</button>
+    </div>
+    
+    <!-- Thông báo lỗi -->
+    <div id="error-message" class="error-message"></div>
+    
+    <!-- Nút điều khiển nhạc -->
+    <div id="music-controls" style="display: none;">
+        <button id="music-toggle" class="music-btn">
+            <span id="music-icon">🔊</span> Nhạc
+        </button>
+    </div>
+    <div class="auto-play-note" id="auto-play-note" style="display: none;">
+        Nhạc đang tự động phát...
+    </div>
+    <div class="audio-warning" id="audio-warning" style="display: none;">
+        Nếu không nghe thấy nhạc, hãy click vào màn hình
+    </div>
+    <div class="rotation-info" id="rotation-info" style="display: none;">
+        🎁 Quay 360° bằng tay
+    </div>
+    
+    <!-- Giao diện chính -->
+    <div id="ui-layer">
+        <div id="status" class="status-badge">🎄 Sinh nhật vui vẻ 🎁</div>
+        <div class="instructions">
+            🖐 <b>Xòe tay:</b> Bung quà & đèn (xoay 360°) &nbsp;|&nbsp; 👌 <b>Chụm ngón:</b> Xem ảnh &nbsp;|&nbsp; ✊ <b>Nắm tay:</b> Thu cây
+        </div>
+        <button id="btnStart" class="start-button" style="display: none;">TIẾP TỤC</button>
+    </div>
+    
+    <!-- Container cho Three.js -->
+    <div id="canvas-container"></div>
+    
+    <!-- Video và canvas cho camera -->
+    <video id="input-video" style="display: none;"></video>
+    <canvas id="camera-preview"></canvas>
+    
+    <!-- Fallback cho camera -->
+    <div id="camera-fallback" class="camera-fallback">
+        Camera không khả dụng<br>
+        Sử dụng phím: 1, 2, 3
+    </div>
+    
+    <!-- Audio cho nhạc nền -->
+    <audio id="bg-music" loop>
+        <!-- Nhạc sẽ được tải từ thư mục cùng cấp -->
+    </audio>
+    
+    <script>
+        // ==========================================
+        // 1. CẤU HÌNH VÀ KHỞI TẠO
+        // ==========================================
+        const CONFIG = {
+            goldCount: 2000,
+            redCount: 300,
+            giftCount: 150,
+            explodeRadius: 65,
+            photoOrbitRadius: 25,
+            treeHeight: 70,
+            treeBaseRadius: 35,
+            rotationSpeed: 0.02,
+            handRotationMultiplier: 0.1
+        };
+        
+        // Các biến toàn cục
+        let scene, camera, renderer;
+        let groupGold, groupRed, groupGift;
+        let photoMeshes = [];
+        let titleMesh, starMesh;
+        
+        let state = 'TREE';
+        let selectedIndex = 0;
+        let handX = 0.5;
+        let rotationAngle = 0;
+        
+        let hands = null;
+        let cameraActive = false;
+        let musicPlaying = false;
+        let audioContextStarted = false;
+        let userInteracted = false;
+        let cameraStream = null;
+
+        // ==========================================
+        // 2. KHỞI TẠO 3D VÀ TẠO ĐỐI TƯỢNG
+        // ==========================================
+        
+        // Tạo texture tùy chỉnh
+        function createCustomTexture(type) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            const cx = 64, cy = 64;
+            
+            if (type === 'gold_glow') {
+                const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, 40);
+                grd.addColorStop(0, '#FFFFFF');
+                grd.addColorStop(0.2, '#FFFFE0');
+                grd.addColorStop(0.5, '#FFD700');
+                grd.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grd;
+                ctx.fillRect(0, 0, 128, 128);
+            } else if (type === 'red_light') {
+                const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, 50);
+                grd.addColorStop(0, '#FFAAAA');
+                grd.addColorStop(0.3, '#FF0000');
+                grd.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = grd;
+                ctx.fillRect(0, 0, 128, 128);
+            } else if (type === 'gift_red') {
+                ctx.fillStyle = '#D32F2F';
+                ctx.fillRect(20, 20, 88, 88);
+                ctx.fillStyle = '#FFD700';
+                ctx.fillRect(54, 20, 20, 88);
+                ctx.fillRect(20, 54, 88, 20);
+                ctx.strokeStyle = "rgba(0,0,0,0.3)";
+                ctx.lineWidth = 2;
+                ctx.strokeRect(20, 20, 88, 88);
+            }
+            
+            return new THREE.CanvasTexture(canvas);
+        }
+        
+        // Tạo texture
+        const textures = {
+            gold: createCustomTexture('gold_glow'),
+            red: createCustomTexture('red_light'),
+            gift: createCustomTexture('gift_red')
+        };
+        
+        // Khởi tạo scene 3D
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            
+            // Tạo scene
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x000000, 0.002);
+            
+            // Tạo camera
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 100;
+            
+            // Tạo renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            container.appendChild(renderer.domElement);
+            
+            // Tạo hệ thống hạt
+            groupGold = createParticleSystem('gold', CONFIG.goldCount, 2.0);
+            groupRed = createParticleSystem('red', CONFIG.redCount, 3.5);
+            groupGift = createParticleSystem('gift', CONFIG.giftCount, 3.0);
+            
+            // Tạo ảnh và trang trí
+            createPhotos();
+            createDecorations();
+            
+            // Bắt đầu animation
+            animate();
+            
+            // Ẩn màn hình loading
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        // Tạo hệ thống hạt
+        function createParticleSystem(type, count, size) {
+            const pPositions = [];
+            const pExplodeTargets = [];
+            const pTreeTargets = [];
+            
+            for (let i = 0; i < count; i++) {
+                // Vị trí trên cây thông
+                const h = Math.random() * CONFIG.treeHeight;
+                const y = h - CONFIG.treeHeight / 2;
+                
+                let radiusRatio = (type === 'gold') ? Math.sqrt(Math.random()) : 0.9 + Math.random() * 0.1;
+                const maxR = (1 - (h / CONFIG.treeHeight)) * CONFIG.treeBaseRadius;
+                const r = maxR * radiusRatio;
+                const theta = Math.random() * Math.PI * 2;
+                
+                const tx = r * Math.cos(theta);
+                const tz = r * Math.sin(theta);
+                pTreeTargets.push(tx, y, tz);
+                
+                // Vị trí khi bung ra
+                const u = Math.random();
+                const v = Math.random();
+                const phi = Math.acos(2 * v - 1);
+                const lam = 2 * Math.PI * u;
+                
+                let radMult = (type === 'gift') ? 1.2 : 1.0;
+                const rad = CONFIG.explodeRadius * Math.cbrt(Math.random()) * radMult;
+                
+                const ex = rad * Math.sin(phi) * Math.cos(lam);
+                const ey = rad * Math.sin(phi) * Math.sin(lam);
+                const ez = rad * Math.cos(phi);
+                pExplodeTargets.push(ex, ey, ez);
+                
+                // Vị trí ban đầu
+                pPositions.push(tx, y, tz);
+            }
+            
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(pPositions, 3));
+            geo.userData = { tree: pTreeTargets, explode: pExplodeTargets };
+            
+            const mat = new THREE.PointsMaterial({
+                size: size,
+                map: textures[type],
+                transparent: true,
+                opacity: 1.0,
+                blending: (type === 'gift') ? THREE.NormalBlending : THREE.AdditiveBlending,
+                depthWrite: false,
+                sizeAttenuation: true
+            });
+            
+            const points = new THREE.Points(geo, mat);
+            scene.add(points);
+            return points;
+        }
+        
+        // Tạo các ảnh
+        function createPhotos() {
+            const photoUrls = [
+                'https://i.postimg.cc/kGt0Zbrg/image1.jpg',
+                'https://i.postimg.cc/q7w6hNZS/image2.jpg',
+                'https://i.postimg.cc/0QrjzcS0/image3.jpg',
+                'https://i.postimg.cc/1R2MMz91/image4.jpg',
+                'https://i.postimg.cc/RhH72cM9/image5.jpg'
+            ];
+            
+            const loader = new THREE.TextureLoader();
+            const geo = new THREE.PlaneGeometry(8, 8);
+            const borderGeo = new THREE.PlaneGeometry(9, 9);
+            const borderMat = new THREE.MeshBasicMaterial({ color: 0xFFD700 });
+            
+            for (let i = 0; i < 5; i++) {
+                const texture = loader.load(photoUrls[i], undefined, undefined, 
+                    function(err) {
+                        console.error('Không thể tải ảnh:', photoUrls[i], err);
+                    });
+                
+                const mat = new THREE.MeshBasicMaterial({
+                    map: texture,
+                    side: THREE.DoubleSide
+                });
+                
+                const mesh = new THREE.Mesh(geo, mat);
+                const border = new THREE.Mesh(borderGeo, borderMat);
+                border.position.z = -0.1;
+                mesh.add(border);
+                
+                mesh.visible = false;
+                mesh.scale.set(0, 0, 0);
+                scene.add(mesh);
+                photoMeshes.push(mesh);
+            }
+        }
+        
+        // Tạo trang trí
+        function createDecorations() {
+            // Tạo tiêu đề
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.font = 'bold 70px "Times New Roman"';
+            ctx.fillStyle = '#FFD700';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = "#FF0000";
+            ctx.shadowBlur = 40;
+            ctx.fillText("Chúc Mừng Sinh Nhật Hưng", 512, 130);
+            
+            const tex = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.MeshBasicMaterial({
+                map: tex,
+                transparent: true,
+                blending: THREE.AdditiveBlending
+            });
+            titleMesh = new THREE.Mesh(new THREE.PlaneGeometry(60, 15), mat);
+            titleMesh.position.set(0, 50, 0);
+            scene.add(titleMesh);
+            
+            // Tạo ngôi sao
+            const starCanvas = document.createElement('canvas');
+            starCanvas.width = 128;
+            starCanvas.height = 128;
+            const sCtx = starCanvas.getContext('2d');
+            sCtx.fillStyle = "#FFFF00";
+            sCtx.shadowColor = "#FFF";
+            sCtx.shadowBlur = 20;
+            
+            sCtx.beginPath();
+            const cx = 64, cy = 64, outer = 50, inner = 20;
+            for (let i = 0; i < 5; i++) {
+                sCtx.lineTo(
+                    cx + Math.cos((18 + i * 72) / 180 * Math.PI) * outer,
+                    cy - Math.sin((18 + i * 72) / 180 * Math.PI) * outer
+                );
+                sCtx.lineTo(
+                    cx + Math.cos((54 + i * 72) / 180 * Math.PI) * inner,
+                    cy - Math.sin((54 + i * 72) / 180 * Math.PI) * inner
+                );
+            }
+            sCtx.closePath();
+            sCtx.fill();
+            
+            const starTex = new THREE.CanvasTexture(starCanvas);
+            const starMat = new THREE.MeshBasicMaterial({
+                map: starTex,
+                transparent: true,
+                blending: THREE.AdditiveBlending
+            });
+            starMesh = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), starMat);
+            starMesh.position.set(0, CONFIG.treeHeight / 2 + 2, 0);
+            scene.add(starMesh);
+        }
+        
+        // Cập nhật hệ thống hạt
+        function updateParticleGroup(group, targetState, speed, handRotY, time, isBlinking) {
+            const positions = group.geometry.attributes.position.array;
+            const targetKey = (targetState === 'TREE') ? 'tree' : 'explode';
+            const targets = group.geometry.userData[(targetState === 'PHOTO') ? 'explode' : targetKey];
+            
+            for (let i = 0; i < positions.length; i++) {
+                positions[i] += (targets[i] - positions[i]) * speed;
+            }
+            group.geometry.attributes.position.needsUpdate = true;
+            
+            if (targetState === 'TREE') {
+                // Cây thông xoay chậm
+                group.rotation.y += 0.003;
+                if (isBlinking) {
+                    const scale = 1 + Math.sin(time * 5) * 0.2;
+                    group.scale.set(scale, scale, scale);
+                } else {
+                    group.scale.set(1, 1, 1);
+                }
+            } else {
+                // Khi bung quà: XOAY 360° LIÊN TỤC
+                group.scale.set(1, 1, 1);
+                
+                // CÁCH 2: Xoay theo cử chỉ tay (từ -180° đến +180°)
+                // Chuyển đổi handX (0-1) thành góc (-π đến +π)
+                const targetRotation = (handX - 0.5) * Math.PI * 2;
+                
+                // Áp dụng xoay mượt mà
+                group.rotation.y += (targetRotation - group.rotation.y) * 0.05;
+                
+                // Cập nhật góc xoay tổng
+                rotationAngle = group.rotation.y;
+            }
+        }
+        
+        // Vòng lặp animation
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = Date.now() * 0.001;
+            const speed = 0.06;
+            
+            // Tính góc xoay từ vị trí tay
+            const handRotY = (handX - 0.5) * Math.PI * 2; // -π đến +π
+            
+            updateParticleGroup(groupGold, state, speed, handRotY, time, false);
+            updateParticleGroup(groupRed, state, speed, handRotY, time, true);
+            updateParticleGroup(groupGift, state, speed, handRotY, time, false);
+            
+            if (state === 'TREE') {
+                titleMesh.visible = true;
+                starMesh.visible = true;
+                titleMesh.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
+                starMesh.rotation.z -= 0.02;
+                photoMeshes.forEach(m => {
+                    m.scale.lerp(new THREE.Vector3(0, 0, 0), 0.1);
+                    m.visible = false;
+                });
+                
+                // Ẩn thông tin xoay khi ở chế độ cây
+                document.getElementById('rotation-info').style.display = 'none';
+                
+            } else if (state === 'EXPLODE') {
+                titleMesh.visible = false;
+                starMesh.visible = false;
+                
+                // HIỂN THỊ thông tin xoay khi bung quà
+                document.getElementById('rotation-info').style.display = 'block';
+                
+                // Sử dụng góc xoay thực tế của groupGold (có thể > 2π)
+                const currentRotation = groupGold.rotation.y;
+                const angleStep = (Math.PI * 2) / 5;
+                let bestIdx = 0;
+                let maxZ = -999;
+                
+                photoMeshes.forEach((mesh, i) => {
+                    mesh.visible = true;
+                    
+                    // Tính góc với xoay liên tục
+                    const angle = currentRotation + i * angleStep;
+                    const x = Math.sin(angle) * CONFIG.photoOrbitRadius;
+                    const z = Math.cos(angle) * CONFIG.photoOrbitRadius;
+                    const y = Math.sin(time + i) * 3;
+                    
+                    mesh.position.lerp(new THREE.Vector3(x, y, z), 0.1);
+                    mesh.lookAt(camera.position);
+                    
+                    // Tìm ảnh gần camera nhất (z lớn nhất)
+                    if (z > maxZ) {
+                        maxZ = z;
+                        bestIdx = i;
+                    }
+                    
+                    // Scale ảnh theo khoảng cách
+                    if (z > 5) {
+                        const distScale = 1.0 + (z / CONFIG.photoOrbitRadius) * 0.8;
+                        mesh.scale.lerp(new THREE.Vector3(distScale, distScale, distScale), 0.1);
+                    } else {
+                        mesh.scale.lerp(new THREE.Vector3(0.6, 0.6, 0.6), 0.1);
+                    }
+                });
+                selectedIndex = bestIdx;
+                
+                // Cập nhật thông tin xoay
+                const degrees = Math.round((currentRotation * 180 / Math.PI) % 360);
+                document.getElementById('rotation-info').innerHTML = 
+                    `🎁 Xoay: ${degrees}° (di chuyển tay trái/phải)`;
+                    
+            } else if (state === 'PHOTO') {
+                photoMeshes.forEach((mesh, i) => {
+                    if (i === selectedIndex) {
+                        mesh.position.lerp(new THREE.Vector3(0, 0, 60), 0.1);
+                        mesh.scale.lerp(new THREE.Vector3(5, 5, 5), 0.1);
+                        mesh.lookAt(camera.position);
+                        mesh.rotation.z = 0;
+                    } else {
+                        mesh.scale.lerp(new THREE.Vector3(0, 0, 0), 0.1);
+                    }
+                });
+                
+                // Ẩn thông tin xoay khi xem ảnh
+                document.getElementById('rotation-info').style.display = 'none';
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        // ==========================================
+        // 3. XỬ LÝ ÂM THANH VÀ KHỞI ĐỘNG
+        // ==========================================
+        
+        // Hàm chính để bật âm thanh và bắt đầu
+        function unmuteAudio() {
+            console.log("Người dùng đã click để bật âm thanh");
+            userInteracted = true;
+            
+            // Ẩn màn hình yêu cầu bật âm thanh
+            document.getElementById('click-to-unmute').style.display = 'none';
+            
+            // Khởi tạo nhạc nền
+            initBackgroundMusic();
+            
+            // Hiển thị nút "TIẾP TỤC"
+            document.getElementById('btnStart').style.display = 'inline-block';
+            
+            // Hiển thị thông báo
+            document.getElementById('status').innerHTML = "🎄 Nhấn 'TIẾP TỤC' để bắt đầu 🎁";
+        }
+        
+        // Khởi tạo nhạc nền
+        function initBackgroundMusic() {
+            const bgMusic = document.getElementById('bg-music');
+            
+            // Đặt nguồn nhạc từ file audio.mp3 trong cùng thư mục
+            bgMusic.src = 'audio.mp3';
+            bgMusic.volume = 0.4; // Âm lượng vừa phải
+            bgMusic.loop = true;
+            bgMusic.preload = 'auto';
+            
+            console.log("Đã khởi tạo nhạc nền từ file audio.mp3");
+            
+            // Thử phát nhạc ngay lập tức vì người dùng đã tương tác
+            playBackgroundMusic();
+        }
+        
+        // Phát nhạc nền
+        function playBackgroundMusic() {
+            const bgMusic = document.getElementById('bg-music');
+            
+            if (userInteracted) {
+                const playPromise = bgMusic.play();
+                
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        // Thành công
+                        musicPlaying = true;
+                        console.log("✅ Nhạc Giáng sinh đang phát!");
+                        
+                        // Cập nhật UI
+                        document.getElementById('music-controls').style.display = 'block';
+                        document.getElementById('auto-play-note').style.display = 'block';
+                        document.getElementById('auto-play-note').innerHTML = "🔊 Nhạc đang phát...";
+                        document.getElementById('music-icon').textContent = "🔊";
+                        
+                        // Ẩn cảnh báo
+                        document.getElementById('audio-warning').style.display = 'none';
+                        
+                    }).catch(error => {
+                        // Thất bại
+                        console.log("❌ Lỗi khi phát nhạc:", error);
+                        
+                        // Hiển thị cảnh báo và hướng dẫn
+                        document.getElementById('audio-warning').style.display = 'block';
+                        document.getElementById('audio-warning').innerHTML = "Nhấn vào màn hình để thử lại";
+                        
+                        // Thêm sự kiện click để thử phát nhạc
+                        const retryAudioOnClick = () => {
+                            bgMusic.play().then(() => {
+                                musicPlaying = true;
+                                console.log("✅ Nhạc đã được bật sau khi click!");
+                                document.getElementById('audio-warning').style.display = 'none';
+                            });
+                        };
+                        document.addEventListener('click', retryAudioOnClick);
+                    });
+                }
+            }
+        }
+        
+        // Hàm bắt đầu hệ thống chính
+        function startSystem() {
+            const btnStart = document.getElementById('btnStart');
+            btnStart.style.display = 'none';
+            
+            // Cập nhật trạng thái
+            document.getElementById('status').innerHTML = "🎄 Sinh nhật vui vẻ (Xoay tay để xem quà) 🎁";
+            
+            // Khởi tạo 3D
+            init3D();
+            
+            // Yêu cầu camera
+            requestCameraPermission();
+        }
+        
+        // ==========================================
+        // 4. TƯƠNG TÁC BÀN TAY VÀ CAMERA - ĐÃ SỬA LỖI GITHUB
+        // ==========================================
+        
+        // Yêu cầu quyền truy cập camera
+        function requestCameraPermission() {
+            const permissionDiv = document.getElementById('camera-permission');
+            permissionDiv.style.display = 'block';
+            
+            document.getElementById('allow-camera').addEventListener('click', async function() {
+                try {
+                    const constraints = { 
+                        video: { 
+                            width: { ideal: 640 },
+                            height: { ideal: 480 },
+                            facingMode: "user"
+                        } 
+                    };
+                    
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    cameraStream = stream;
+                    
+                    permissionDiv.style.display = 'none';
+                    initHandTracking(stream);
+                    
+                } catch (err) {
+                    console.error("Lỗi truy cập camera:", err);
+                    showError("Không thể truy cập camera: " + err.message);
+                    permissionDiv.style.display = 'none';
+                    
+                    // Hiển thị fallback và hướng dẫn phím tắt
+                    document.getElementById('camera-fallback').style.display = 'flex';
+                    document.getElementById('status').innerText = "🎄 Sinh nhật vui vẻ (Dùng phím: 1, 2, 3) 🎁";
+                    document.getElementById('rotation-info').innerText = "🎁 Xoay quà bằng phím ← →";
+                    
+                    // Thêm hướng dẫn phím tắt vào instructions
+                    document.querySelector('.instructions').innerHTML += 
+                        " &nbsp;|&nbsp; 🎮 <b>Phím:</b> 1=Cây, 2=Quà, 3=Ảnh";
+                }
+            });
+            
+            document.getElementById('skip-camera').addEventListener('click', function() {
+                permissionDiv.style.display = 'none';
+                document.getElementById('status').innerText = "🎄 Sinh nhật vui vẻ (Dùng phím: 1, 2, 3) 🎁";
+                
+                // Hiển thị fallback và hướng dẫn phím tắt
+                document.getElementById('camera-fallback').style.display = 'flex';
+                document.getElementById('rotation-info').innerText = "🎁 Xoay quà bằng phím ← →";
+                
+                // Thêm hướng dẫn phím tắt vào instructions
+                document.querySelector('.instructions').innerHTML += 
+                    " &nbsp;|&nbsp; 🎮 <b>Phím:</b> 1=Cây, 2=Quà, 3=Ảnh";
+            });
+        }
+        
+        // Khởi tạo nhận diện tay - PHIÊN BẢN DỰ PHÒNG CHO GITHUB
+        function initHandTracking(stream) {
+            const video = document.getElementById('input-video');
+            const canvas = document.getElementById('camera-preview');
+            const ctx = canvas.getContext('2d');
+            const statusDiv = document.getElementById('status');
+            
+            // Ẩn fallback nếu camera hoạt động
+            document.getElementById('camera-fallback').style.display = 'none';
+            
+            canvas.style.display = 'block';
+            video.srcObject = stream;
+            
+            video.onloadedmetadata = () => {
+                video.play().catch(e => {
+                    console.log("Video play bị từ chối:", e);
+                    showError("Không thể phát video từ camera");
+                });
+            };
+            
+            // Kiểm tra xem MediaPipe có tải thành công không
+            if (typeof Hands === 'undefined') {
+                console.error("MediaPipe Hands không tải được!");
+                showError("Không thể tải thư viện nhận diện tay. Sử dụng phím tắt thay thế.");
+                return;
+            }
+            
+            hands = new Hands({
+                locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                }
+            });
+            
+            hands.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 0, // Giảm độ phức tạp để tăng hiệu suất
+                minDetectionConfidence: 0.7,
+                minTrackingConfidence: 0.5
+            });
+            
+            hands.onResults((results) => {
+                if (!results || !results.image) return;
+                
+                try {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+                    
+                    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                        const landmarks = results.multiHandLandmarks[0];
+                        
+                        // Lấy vị trí ngón trỏ
+                        handX = landmarks[8].x;
+                        
+                        const tips = [8, 12, 16, 20];
+                        const wrist = landmarks[0];
+                        
+                        let totalDistance = 0;
+                        tips.forEach(index => {
+                            const tip = landmarks[index];
+                            totalDistance += Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
+                        });
+                        const avgFingerDistance = totalDistance / 4;
+                        
+                        const thumbTip = landmarks[4];
+                        const indexTip = landmarks[8];
+                        const pinchDistance = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+                        
+                        if (avgFingerDistance < 0.25) {
+                            state = 'TREE';
+                            statusDiv.innerText = "✊ Thu Cây Thông";
+                            statusDiv.style.color = "#FFD700";
+                        } else if (pinchDistance < 0.08) {
+                            state = 'PHOTO';
+                            statusDiv.innerText = "👌 Xem Ảnh";
+                            statusDiv.style.color = "#00FFFF";
+                        } else {
+                            state = 'EXPLODE';
+                            statusDiv.innerText = "🖐 Bung Quà & Xoay 360°";
+                            statusDiv.style.color = "#FFA500";
+                        }
+                        
+                        cameraActive = true;
+                    } else {
+                        state = 'TREE';
+                        statusDiv.innerText = "🎄 Đưa tay vào khung hình 🎁";
+                        statusDiv.style.color = "#FFF";
+                    }
+                } catch (err) {
+                    console.error("Lỗi xử lý kết quả MediaPipe:", err);
+                }
+            });
+            
+            // Sử dụng requestAnimationFrame thay vì Camera class
+            function processFrame() {
+                if (video.readyState >= 2 && hands) {
+                    try {
+                        hands.send({image: video});
+                    } catch (err) {
+                        console.error("Lỗi send MediaPipe:", err);
+                    }
+                }
+                requestAnimationFrame(processFrame);
+            }
+            
+            processFrame();
+        }
+        
+        // Hàm điều khiển nhạc
+        function toggleMusic() {
+            const bgMusic = document.getElementById('bg-music');
+            const icon = document.getElementById('music-icon');
+            const note = document.getElementById('auto-play-note');
+            
+            if (bgMusic.paused) {
+                bgMusic.play();
+                icon.textContent = "🔊";
+                note.innerHTML = "🔊 Nhạc đang phát...";
+                console.log("Nhạc tiếp tục phát");
+            } else {
+                bgMusic.pause();
+                icon.textContent = "🔇";
+                note.innerHTML = "⏸️ Nhạc đã tạm dừng";
+                console.log("Nhạc đã tạm dừng");
+            }
+        }
+        
+        // Hiển thị thông báo lỗi
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = "Lỗi: " + message;
+            errorDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Kiểm tra lỗi tải nhạc
+        function checkMusicError() {
+            const bgMusic = document.getElementById('bg-music');
+            
+            bgMusic.addEventListener('error', function(e) {
+                console.error("❌ Lỗi tải file nhạc:", e);
+                showError("Không thể tải file audio.mp3. Đảm bảo file tồn tại trong thư mục cùng cấp với file HTML.");
+                document.getElementById('auto-play-note').innerHTML = "❌ Lỗi tải nhạc";
+                document.getElementById('auto-play-note').style.color = "#ff6b6b";
+            });
+            
+            bgMusic.addEventListener('loadeddata', function() {
+                console.log("✅ File nhạc đã tải thành công");
+            });
+        }
+        
+        // Dọn dẹp camera stream khi trang đóng
+        window.addEventListener('beforeunload', function() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+            }
+        });
+        
+        // ==========================================
+        // 5. KHỞI TẠO SỰ KIỆN
+        // ==========================================
+        
+        // Gán sự kiện cho nút BẮT ĐẦU/TIẾP TỤC
+        document.getElementById('btnStart').addEventListener('click', startSystem);
+        
+        // Gán sự kiện cho nút điều khiển nhạc
+        document.getElementById('music-toggle').addEventListener('click', toggleMusic);
+        
+        // Kiểm tra lỗi nhạc khi tải trang
+        checkMusicError();
+        
+        // Xử lý resize window
+        window.addEventListener('resize', () => {
+            if (camera && renderer) {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        });
+        
+        // Xử lý phím tắt - THÊM ĐIỀU KHIỂN XOAY
+        document.addEventListener('keydown', (e) => {
+            if (e.key === '1' || e.key === ' ') {
+                state = 'TREE';
+                document.getElementById('status').innerText = "🎄 Sinh nhật vui vẻ (Phím: 1, 2, 3) 🎁";
+                document.getElementById('status').style.color = "#FFD700";
+            } else if (e.key === '2') {
+                state = 'EXPLODE';
+                document.getElementById('status').innerText = "✨ Bung Quà & Xoay 360° ✨";
+                document.getElementById('status').style.color = "#FFA500";
+                
+                // Reset góc xoay khi chuyển sang chế độ bung quà
+                rotationAngle = 0;
+                if (groupGold) groupGold.rotation.y = 0;
+                if (groupRed) groupRed.rotation.y = 0;
+                if (groupGift) groupGift.rotation.y = 0;
+                
+                // Hiển thị thông tin xoay
+                document.getElementById('rotation-info').style.display = 'block';
+                document.getElementById('rotation-info').innerText = "🎁 Xoay quà bằng phím ← →";
+                
+            } else if (e.key === '3') {
+                state = 'PHOTO';
+                document.getElementById('status').innerText = "📸 Xem Ảnh 📸";
+                document.getElementById('status').style.color = "#00FFFF";
+            } else if (e.key === 'm' || e.key === 'M') {
+                toggleMusic(); // Phím M để bật/tắt nhạc
+            } else if (e.key === 'ArrowLeft') {
+                // Phím mũi tên trái: xoay trái
+                if (state === 'EXPLODE') {
+                    if (groupGold) groupGold.rotation.y -= 0.1;
+                    if (groupRed) groupRed.rotation.y -= 0.1;
+                    if (groupGift) groupGift.rotation.y -= 0.1;
+                }
+            } else if (e.key === 'ArrowRight') {
+                // Phím mũi tên phải: xoay phải
+                if (state === 'EXPLODE') {
+                    if (groupGold) groupGold.rotation.y += 0.1;
+                    if (groupRed) groupRed.rotation.y += 0.1;
+                    if (groupGift) groupGift.rotation.y += 0.1;
+                }
+            }
+        });
+        
+        // Hiển thị màn hình bật âm thanh khi tải trang
+        window.addEventListener('load', () => {
+            // Ẩn màn hình loading sau 1 giây
+            setTimeout(() => {
+                document.getElementById('loading').style.display = 'none';
+                // Hiển thị màn hình yêu cầu bật âm thanh
+                document.getElementById('click-to-unmute').style.display = 'flex';
+                
+                console.log("Trang đã tải xong.");
+                console.log("📂 Đảm bảo file 'audio.mp3' nằm cùng thư mục với file HTML này");
+                console.log("🔄 Ứng dụng đã được tối ưu cho GitHub Pages");
+                console.log("🎮 Có thể sử dụng phím tắt nếu camera không hoạt động");
+            }, 1000);
+        });
+        
+        // Hiển thị hướng dẫn phím tắt
+        console.log("Hướng dẫn phím tắt:");
+        console.log("1 hoặc Space: Cây thông");
+        console.log("2: Bung quà và ảnh (xoay 360°)");
+        console.log("3: Xem ảnh phóng to");
+        console.log("M: Bật/tắt nhạc");
+        console.log("← → : Xoay quà (khi ở chế độ bung quà)");
+    </script>
+</body>
+</html>
